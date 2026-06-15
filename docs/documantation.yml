@@ -1,0 +1,941 @@
+openapi: 3.0.0
+info:
+  title: CarMarket API
+  version: 1.0.0
+  description: Mashinalar (avtomobillar) bozori uchun backend API. Foydalanuvchilar ro'yxatdan o'tishi, kategoriyalar (markalar) va mashinalar bilan ishlashi mumkin.
+servers:
+  - url: http://localhost:4001
+    description: Development server
+
+tags:
+  - name: Authentication
+    description: Ro'yxatdan o'tish, login va tokenlar bilan ishlash
+  - name: Kategoriyalar
+    description: Mashina kategoriyalari (markalari) bilan ishlash
+  - name: Mashinalar
+    description: Mashinalar (e'lonlar) bilan ishlash
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Kategoriya:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: "665f1c2e1234567890abcdef"
+        nomi:
+          type: string
+          example: "CHEVROLET"
+        rasm:
+          type: string
+          example: "http://localhost:4001/uploads/1718000000000-logo.png"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Mashina:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: "665f1c2e1234567890abcdef"
+        kategoriya:
+          oneOf:
+            - type: string
+            - $ref: '#/components/schemas/Kategoriya'
+          description: Kategoriya (marka) ObjectId yoki populate qilingan obyekt
+        nomi:
+          type: string
+          example: "LACETTI"
+        tanirovkasi:
+          type: string
+          enum: ["Yoq", "Bor"]
+          example: "Bor"
+        motor:
+          type: number
+          example: 1.6
+        yil:
+          type: integer
+          example: 2018
+        rang:
+          type: string
+          example: "Oq"
+        masofa:
+          type: integer
+          example: 45000
+        uzatmalar_qutisi:
+          type: string
+          enum: ["Avtomat karobka", "Mexanik karobka", "Variator", "Robotlashgan"]
+          example: "Avtomat karobka"
+        narxi:
+          type: number
+          example: 12500
+        tavsif:
+          type: string
+          example: "Yaxshi holatda, bitta egasida bo'lgan"
+        rasm_360_tashqi:
+          type: string
+          example: "http://localhost:4001/uploads/1718000000000-tashqi.jpg"
+        rasm_360_ichki:
+          type: string
+          example: "http://localhost:4001/uploads/1718000000000-ichki.jpg"
+        model_rasmi:
+          type: string
+          example: "http://localhost:4001/uploads/1718000000000-model.jpg"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 42
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 6
+        totalPages:
+          type: integer
+          example: 7
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Xatolik yuz berdi"
+
+    ValidationError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Validatsiya xatosi"
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: "narxi"
+              message:
+                type: string
+                example: "Narxini kiritish shart"
+
+paths:
+  # ==================== AUTH ====================
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Ro'yxatdan o'tish
+      description: Yangi foydalanuvchi yaratadi va emailga tasdiqlash kodi (OTP) yuboradi.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - email
+                - password
+              properties:
+                username:
+                  type: string
+                  example: "nodirbek"
+                email:
+                  type: string
+                  example: "nodirbek@gmail.com"
+                password:
+                  type: string
+                  example: "password123"
+      responses:
+        '201':
+          description: Foydalanuvchi muvaffaqiyatli ro'yxatdan o'tdi, emailga kod yuborildi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Ro'yxatdan o'tdingiz! Emailingizga tasdiqlash kodi yuborildi."
+        '400':
+          description: Email yoki username allaqachon band, yoki validatsiya xatosi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/verify:
+    post:
+      tags:
+        - Authentication
+      summary: Emailga yuborilgan kod orqali tasdiqlash
+      description: Ro'yxatdan o'tishda yuborilgan 6 xonali OTP kodni tekshiradi.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - otp
+              properties:
+                email:
+                  type: string
+                  example: "nodirbek@gmail.com"
+                otp:
+                  type: string
+                  example: "123456"
+      responses:
+        '200':
+          description: Email muvaffaqiyatli tasdiqlandi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Email muvaffaqiyatli tasdiqlandi! Endi tizimga kirishingiz mumkin."
+        '400':
+          description: Kod noto'g'ri yoki muddati o'tgan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Foydalanuvchi topilmadi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login
+      description: Email va parol orqali tizimga kirish. Muvaffaqiyatli bo'lsa accessToken va refreshToken cookie sifatida o'rnatiladi.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  example: "nodirbek@gmail.com"
+                password:
+                  type: string
+                  example: "password123"
+      responses:
+        '200':
+          description: Tizimga muvaffaqiyatli kirildi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Tizimga muvaffaqiyatli kirdingiz"
+                  accessToken:
+                    type: string
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      username:
+                        type: string
+                      email:
+                        type: string
+                      role:
+                        type: string
+                        example: "user"
+        '400':
+          description: Email yoki parol noto'g'ri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Foydalanuvchi topilmadi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    get:
+      tags:
+        - Authentication
+      summary: Tokenlarni yangilash
+      description: refreshToken cookie orqali yangi accessToken va refreshToken oladi.
+      responses:
+        '200':
+          description: Tokenlar muvaffaqiyatli yangilandi
+        '400':
+          description: Token topilmadi yoki yaroqsiz
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Tizimdan chiqish
+      description: accessToken va refreshToken cookie'larini tozalaydi.
+      responses:
+        '200':
+          description: Tizimdan muvaffaqiyatli chiqildi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Tizimdan chiqildi"
+
+  # ==================== KATEGORIYALAR ====================
+  /kategoriyalar:
+    get:
+      tags:
+        - Kategoriyalar
+      summary: Barcha kategoriyalarni (markalarni) olish
+      responses:
+        '200':
+          description: Kategoriyalar ro'yxati
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Kategoriya'
+
+    post:
+      tags:
+        - Kategoriyalar
+      summary: Yangi kategoriya (marka) qo'shish (faqat admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - nomi
+                - rasm
+              properties:
+                nomi:
+                  type: string
+                  example: "Chevrolet"
+                  description: "Avtomatik ravishda katta harflarga o'tkaziladi"
+                rasm:
+                  type: string
+                  format: binary
+                  description: Kategoriya logosi/rasmi
+      responses:
+        '201':
+          description: Kategoriya muvaffaqiyatli qo'shildi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Kategoriya muvaffaqiyatli qo'shildi"
+                  data:
+                    $ref: '#/components/schemas/Kategoriya'
+        '400':
+          description: Validatsiya xatosi, rasm yo'q yoki kategoriya allaqachon mavjud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          description: Token topilmadi yoki yaroqsiz
+        '403':
+          description: Admin huquqi talab qilinadi
+
+  /kategoriyalar/{id}:
+    get:
+      tags:
+        - Kategoriyalar
+      summary: Bitta kategoriyani olish
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Kategoriya ma'lumotlari
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Kategoriya'
+        '404':
+          description: Kategoriya topilmadi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Kategoriyalar
+      summary: Kategoriyani yangilash (faqat admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                nomi:
+                  type: string
+                  example: "Lada"
+                rasm:
+                  type: string
+                  format: binary
+                  description: Yangi rasm (ixtiyoriy)
+      responses:
+        '200':
+          description: Kategoriya yangilandi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Kategoriya yangilandi"
+        '404':
+          description: Kategoriya topilmadi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Token topilmadi yoki yaroqsiz
+        '403':
+          description: Admin huquqi talab qilinadi
+
+    delete:
+      tags:
+        - Kategoriyalar
+      summary: Kategoriyani o'chirish (faqat admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Kategoriya o'chirildi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Kategoriya o'chirildi"
+        '404':
+          description: Kategoriya topilmadi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Token topilmadi yoki yaroqsiz
+        '403':
+          description: Admin huquqi talab qilinadi
+
+  # ==================== MASHINALAR ====================
+  /mashinalar:
+    get:
+      tags:
+        - Mashinalar
+      summary: Barcha mashinalarni olish (paginatsiya bilan)
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Sahifa raqami
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 6
+          description: Bir sahifadagi mashinalar soni
+      responses:
+        '200':
+          description: Mashinalar ro'yxati
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Mashina'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Mashinalar
+      summary: Yangi mashina (e'lon) qo'shish (faqat admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - kategoriya
+                - nomi
+                - motor
+                - yil
+                - rang
+                - masofa
+                - uzatmalar_qutisi
+                - narxi
+                - tavsif
+                - rasm_360_tashqi
+                - rasm_360_ichki
+                - model_rasmi
+              properties:
+                kategoriya:
+                  type: string
+                  description: Kategoriya (marka) ObjectId
+                  example: "665f1c2e1234567890abcdef"
+                nomi:
+                  type: string
+                  example: "Lacetti"
+                tanirovkasi:
+                  type: string
+                  enum: ["Yoq", "Bor"]
+                  example: "Bor"
+                motor:
+                  type: number
+                  minimum: 0.5
+                  maximum: 10
+                  example: 1.6
+                yil:
+                  type: integer
+                  minimum: 1990
+                  example: 2018
+                rang:
+                  type: string
+                  example: "Oq"
+                masofa:
+                  type: integer
+                  minimum: 0
+                  example: 45000
+                uzatmalar_qutisi:
+                  type: string
+                  enum: ["Avtomat karobka", "Mexanik karobka", "Variator", "Robotlashgan"]
+                  example: "Avtomat karobka"
+                narxi:
+                  type: number
+                  minimum: 0
+                  example: 12500
+                tavsif:
+                  type: string
+                  minLength: 10
+                  example: "Yaxshi holatda, bitta egasida bo'lgan"
+                rasm_360_tashqi:
+                  type: string
+                  format: binary
+                  description: Mashinaning tashqi ko'rinishi (360°)
+                rasm_360_ichki:
+                  type: string
+                  format: binary
+                  description: Mashinaning ichki ko'rinishi (360°)
+                model_rasmi:
+                  type: string
+                  format: binary
+                  description: Mashina modeli rasmi
+      responses:
+        '201':
+          description: Mashina muvaffaqiyatli qo'shildi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Mashina muvaffaqiyatli qo'shildi"
+                  data:
+                    $ref: '#/components/schemas/Mashina'
+        '400':
+          description: Validatsiya xatosi yoki rasmlar yuklanmagan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '404':
+          description: Kategoriya topilmadi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Token topilmadi yoki yaroqsiz
+        '403':
+          description: Admin huquqi talab qilinadi
+
+  /mashinalar/search:
+    get:
+      tags:
+        - Mashinalar
+      summary: Mashinalarni qidirish va filtrlash
+      description: Nomi, kategoriya, narx oralig'i, rang, yil va uzatmalar qutisi turi bo'yicha qidirish.
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Mashina nomi bo'yicha qidirish (qisman moslik)
+          example: "Lacetti"
+        - name: kategoriya
+          in: query
+          schema:
+            type: string
+          description: Kategoriya ObjectId bo'yicha filtr
+        - name: min_narx
+          in: query
+          schema:
+            type: number
+          description: Minimal narx
+        - name: max_narx
+          in: query
+          schema:
+            type: number
+          description: Maksimal narx
+        - name: rang
+          in: query
+          schema:
+            type: string
+          description: Rang bo'yicha qidirish (qisman moslik)
+        - name: yil
+          in: query
+          schema:
+            type: integer
+          description: Ishlab chiqarilgan yili
+        - name: uzatmalar_qutisi
+          in: query
+          schema:
+            type: string
+            enum: ["Avtomat karobka", "Mexanik karobka", "Variator", "Robotlashgan"]
+          description: Uzatmalar qutisi turi
+      responses:
+        '200':
+          description: Topilgan mashinalar ro'yxati
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                    example: 3
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Mashina'
+
+  /mashinalar/kategoriya/{kategoriyaId}:
+    get:
+      tags:
+        - Mashinalar
+      summary: Kategoriya (marka) bo'yicha mashinalarni olish
+      parameters:
+        - name: kategoriyaId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Kategoriya ObjectId
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 8
+      responses:
+        '200':
+          description: Ushbu kategoriyaga tegishli mashinalar ro'yxati
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  kategoriya:
+                    $ref: '#/components/schemas/Kategoriya'
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Mashina'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '404':
+          description: Kategoriya topilmadi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /mashinalar/{id}:
+    get:
+      tags:
+        - Mashinalar
+      summary: Bitta mashinani olish
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Mashina ma'lumotlari (kategoriya bilan)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Mashina'
+        '404':
+          description: Mashina topilmadi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Mashinalar
+      summary: Mashina ma'lumotlarini yangilash (faqat admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                kategoriya:
+                  type: string
+                  description: Kategoriya ObjectId
+                nomi:
+                  type: string
+                tanirovkasi:
+                  type: string
+                  enum: ["Yoq", "Bor"]
+                motor:
+                  type: number
+                yil:
+                  type: integer
+                rang:
+                  type: string
+                masofa:
+                  type: integer
+                uzatmalar_qutisi:
+                  type: string
+                  enum: ["Avtomat karobka", "Mexanik karobka", "Variator", "Robotlashgan"]
+                narxi:
+                  type: number
+                tavsif:
+                  type: string
+                rasm_360_tashqi:
+                  type: string
+                  format: binary
+                  description: Yangi tashqi 360° rasm (ixtiyoriy)
+                rasm_360_ichki:
+                  type: string
+                  format: binary
+                  description: Yangi ichki 360° rasm (ixtiyoriy)
+                model_rasmi:
+                  type: string
+                  format: binary
+                  description: Yangi model rasmi (ixtiyoriy)
+      responses:
+        '200':
+          description: Mashina yangilandi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Mashina yangilandi"
+        '404':
+          description: Mashina yoki kategoriya topilmadi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Token topilmadi yoki yaroqsiz
+        '403':
+          description: Admin huquqi talab qilinadi
+
+    delete:
+      tags:
+        - Mashinalar
+      summary: Mashinani o'chirish (faqat admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Mashina o'chirildi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Mashina o'chirildi"
+        '404':
+          description: Mashina topilmadi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Token topilmadi yoki yaroqsiz
+        '403':
+          description: Admin huquqi talab qilinadi
